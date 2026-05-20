@@ -1,5 +1,3 @@
-"""TRM Reranker Model for Information Retrieval."""
-
 import math
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
@@ -55,7 +53,7 @@ class TRMReranker(LightningModule):
     def __init__(
         self,
         # Model architecture
-        encoder_name: str = "bert-base-uncased",
+        encoder_name: str = "google-bert/bert-base-uncased",
         hidden_size: int = 512,
         num_layers: int = 2,
         num_heads: int = 8,
@@ -100,7 +98,7 @@ class TRMReranker(LightningModule):
         super().__init__()
         self.save_hyperparameters()
         
-        # CRITICAL: Manual optimization
+        # Manual optimization
         self.automatic_optimization = False
         
         # Determine dtype

@@ -1,4 +1,3 @@
-# src/nn/callbacks/ema.py
 import copy
 from typing import Any, Dict, Optional
 
@@ -9,7 +8,7 @@ from lightning import Callback, LightningModule, Trainer
 
 class EMACallback(Callback):
     """
-    Exponential Moving Average callback for PyTorch Lightning.
+    Exponential Moving Average callback.
     
     Maintains shadow weights and optionally uses them for validation/testing.
     """
@@ -106,7 +105,7 @@ class EMACallback(Callback):
         self._ema_initialized = True
     
     def get_ema_model(self, module: nn.Module) -> nn.Module:
-        """Return a deep copy with EMA weights (useful for saving)."""
+        """Return a deep copy with EMA weights."""
         module_copy = copy.deepcopy(module)
         for name, param in module_copy.named_parameters():
             if name in self.shadow:

@@ -4,6 +4,8 @@ data_dir: ./data/gooaq
 tokenizer_name: bert-base-uncased
 max_length: 256
 batch_size: 32
+ranking_batch_size: 4
+num_candidates: 20
 num_workers: 4
 train_file: train.parquet
 val_file: val.parquet

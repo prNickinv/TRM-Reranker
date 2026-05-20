@@ -1,5 +1,3 @@
-"""Dataset for reranking."""
-
 import json
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -42,10 +40,11 @@ class BinaryRerankDataset(Dataset):
 
 class RankingRerankDataset(Dataset):
     """Dataset for full ranking validation."""
-    def __init__(self, hf_dataset, tokenizer: PreTrainedTokenizer, max_length: int = 512):
+    def __init__(self, hf_dataset, tokenizer: PreTrainedTokenizer, max_length: int = 512, num_candidates: int = 20):
         self.dataset = hf_dataset
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.num_candidates = num_candidates
 
     def __len__(self) -> int:
         return len(self.dataset)
@@ -54,11 +53,11 @@ class RankingRerankDataset(Dataset):
         item = self.dataset[idx]
         question = str(item["question"])
         
-        # 1 Positive + 19 Negatives
-        docs = [str(item["answer"])] + [str(item[f"negative_{i}"]) for i in range(1, 20)]
-        labels = [1] + [0] * 19  # 1 for positive, 0 for negatives
+        # 1 Positive + (num_candidates - 1) Negatives
+        docs = [str(item["answer"])] + [str(item[f"negative_{i}"]) for i in range(1, self.num_candidates)]
+        labels = [1] + [0] * (self.num_candidates - 1)  # 1 for positive, 0 for negatives
 
-        queries = [question] * 20
+        queries = [question] * self.num_candidates
         encodings = self.tokenizer(
             queries,
             docs,
@@ -69,9 +68,9 @@ class RankingRerankDataset(Dataset):
         )
 
         return {
-            "input_ids": encodings["input_ids"],          # Shape: [20, max_length]
-            "attention_mask": encodings["attention_mask"], # Shape: [20, max_length]
-            "labels": torch.tensor(labels, dtype=torch.float32), # Shape: [20]
+            "input_ids": encodings["input_ids"],          # Shape: [num_candidates, max_length]
+            "attention_mask": encodings["attention_mask"], # Shape: [num_candidates, max_length]
+            "labels": torch.tensor(labels, dtype=torch.float32), # Shape: [num_candidates]
             "query_id": str(idx), # Unique ID required for ir_measures
         }
 

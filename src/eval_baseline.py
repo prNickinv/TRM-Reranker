@@ -1,5 +1,3 @@
-"""Evaluation script for Baseline Pretrained Models."""
-
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -52,4 +50,3 @@ def main(cfg: DictConfig):
 
 if __name__ == "__main__":
     main()
-_

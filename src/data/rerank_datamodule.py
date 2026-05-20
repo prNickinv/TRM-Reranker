@@ -22,7 +22,8 @@ class RerankDataModule(LightningDataModule):
         tokenizer_name: str = "bert-base-uncased",
         max_length: int = 512,
         batch_size: int = 32,
-        ranking_batch_size: int = 4, # Smaller batch size because each query contains 20 docs
+        ranking_batch_size: int = 4,
+        num_candidates: int = 20,
         num_workers: int = 4,
         train_file: str = "train.parquet",
         val_file: str = "val.parquet",
@@ -34,6 +35,7 @@ class RerankDataModule(LightningDataModule):
         self.max_length = max_length
         self.batch_size = batch_size
         self.ranking_batch_size = ranking_batch_size
+        self.num_candidates = num_candidates
         self.num_workers = num_workers
         
         self.train_file = train_file
@@ -66,7 +68,7 @@ class RerankDataModule(LightningDataModule):
                 
             if val_ranking_path.exists():
                 hf_val_rank = load_dataset("parquet", data_files=str(val_ranking_path), split="train")
-                self.val_ranking_dataset = RankingRerankDataset(hf_val_rank, self.tokenizer, self.max_length)
+                self.val_ranking_dataset = RankingRerankDataset(hf_val_rank, self.tokenizer, self.max_length, self.num_candidates)
                 log.info(f"Loaded {len(self.val_ranking_dataset)} ranking validation queries")
 
     def train_dataloader(self):
