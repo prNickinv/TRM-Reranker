@@ -1,0 +1,18 @@
+_target_: src.models.baseline_reranker.BaselineReranker
+
+model_name: "google-bert/bert-base-uncased"
+freeze_encoder: true       # ONLY the relevance head will be trained
+learning_rate: 1e-3        # High learning rate is safe since we only train 1 linear layer
+weight_decay: 0.01
+warmup_steps: 250          # Adjust depending on dataset size
+forward_dtype: null
+
+
+
+#model_name: "BAAI/bge-reranker-base"
+# Other options you can try for meaningful zero-shot evaluation:
+# model_name: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+# model_name: "BAAI/bge-reranker-base"
+# "cross-encoder/ms-marco-TinyBERT-L6"
+
+#forward_dtype: null

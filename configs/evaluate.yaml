@@ -1,0 +1,10 @@
+# @package _global_
+
+defaults:
+  - data: msmarco
+
+# Checkpoint path for evaluation
+checkpoint: ???
+
+# Evaluation settings
+batch_size: 64

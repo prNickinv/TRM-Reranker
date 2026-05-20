@@ -1,0 +1,10 @@
+_target_: src.data.rerank_datamodule.RerankDataModule
+
+data_dir: ./data/gooaq
+tokenizer_name: bert-base-uncased
+max_length: 256
+batch_size: 32
+num_workers: 4
+train_file: train.parquet
+val_file: val.parquet
+val_ranking_file: val_ranking.parquet

@@ -1,0 +1,44 @@
+# @package _global_
+
+# Debug Experiment - Fast training for testing code changes
+# Usage: python src/train.py experiment=debug
+
+defaults:
+  - override /data: msmarco
+  - override /model: trm_reranker
+  - override /trainer: default
+  - override /logger: csv
+  - override /callbacks: default
+
+task_name: "debug"
+seed: 42
+
+# Small model for fast iteration
+model:
+  hidden_size: 256
+  num_layers: 2
+  num_heads: 4
+  H_cycles: 2
+  L_cycles: 4
+  N_supervision: 8
+  N_supervision_val: 8
+  learning_rate: 1e-4
+  warmup_steps: 100
+
+# Fast training
+data:
+  batch_size: 16
+  num_workers: 2
+
+trainer:
+  max_epochs: 2
+  limit_train_batches: 100  # Only 100 batches per epoch
+  limit_val_batches: 20  # Only 20 validation batches
+  val_check_interval: 1.0
+  log_every_n_steps: 10
+
+callbacks:
+  model_checkpoint:
+    save_top_k: 1
+    monitor: "val/f1"
+    mode: "max"

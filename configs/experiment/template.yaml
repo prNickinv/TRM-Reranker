@@ -1,0 +1,190 @@
+# @package _global_
+
+# Experiment Template
+# Copy this file and modify parameters for your experiments
+# Usage: python src/train.py experiment=template
+
+defaults:
+  - override /data: msmarco
+  - override /model: trm_reranker
+  - override /trainer: default
+  - override /logger: multi  # Use csv + tensorboard (change to 'wandb' if available)
+  - override /callbacks: default
+
+# Experiment name (will be used in output directory)
+task_name: "experiment_template"
+
+# Random seed for reproducibility
+seed: 42
+
+# Resume from checkpoint (set path or null)
+ckpt_path: null
+
+# ======================
+# DATA CONFIGURATION
+# ======================
+data:
+  # Paths to data files (modify these!)
+  train_path: "data/msmarco/train.jsonl"
+  val_path: "data/msmarco/val.jsonl"
+  test_path: null
+
+  # Batch sizes
+  batch_size: 32
+  num_workers: 4
+
+  # Data preprocessing
+  max_length: 512
+
+# ======================
+# MODEL CONFIGURATION
+# ======================
+model:
+  # Encoder settings
+  encoder_name: "bert-base-uncased"
+  freeze_encoder: false
+
+  # Embedding options (for training from scratch)
+  use_pretrained_encoder: true  # Set false to train embeddings from scratch
+  vocab_size: 30522
+  use_rope: false  # Enable RoPE when use_pretrained_encoder=false
+  rope_base: 10000.0
+
+  # Architecture
+  hidden_size: 512
+  num_layers: 2
+  num_heads: 8
+  ffn_expansion: 2.0
+  dropout: 0.1
+
+  # TRM recursive reasoning
+  H_cycles: 3  # High-level reasoning cycles
+  L_cycles: 6  # Low-level reasoning cycles per H-cycle
+  N_supervision: 16  # Max supervision steps during training
+  N_supervision_val: 16  # Max supervision steps during validation
+  halt_exploration_prob: 0.1  # Probability of enforcing minimum steps
+
+  # Training hyperparameters
+  learning_rate: 1e-4
+  weight_decay: 0.1
+  warmup_steps: 2000
+  lr_min_ratio: 0.0
+
+  # Loss configuration
+  loss_type: "bce"  # Options: 'bce', 'margin'
+  margin: 1.0  # Only used if loss_type='margin'
+
+  # Optimizer
+  optimizer_name: "adamw"  # Options: 'adamw', 'adamatan2'
+
+  # Performance optimization
+  use_compile: false  # Enable torch.compile (requires PyTorch 2.0+)
+  compile_mode: "reduce-overhead"  # Options: 'default', 'reduce-overhead', 'max-autotune'
+
+  # Mixed precision
+  forward_dtype: null  # null for auto (bf16 on GPU, fp32 on CPU)
+
+# ======================
+# TRAINER CONFIGURATION
+# ======================
+trainer:
+  # Training duration
+  max_epochs: 10
+  max_steps: -1  # -1 means use max_epochs
+
+  # Validation
+  val_check_interval: 1.0  # Validate every epoch
+  check_val_every_n_epoch: 1
+
+  # Logging
+  log_every_n_steps: 50
+
+  # Hardware
+  accelerator: "auto"  # auto, gpu, cpu, tpu
+  devices: 1
+  precision: "bf16-mixed"  # Options: 32, 16, "bf16-mixed"
+
+  # Gradient settings
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
+
+  # Debugging (set to small number for quick testing)
+  limit_train_batches: 1.0  # 1.0 = use all, or set to e.g. 100 for debugging
+  limit_val_batches: 1.0
+  limit_test_batches: 1.0
+
+  # Performance
+  deterministic: false  # Set true for reproducibility (slower)
+  benchmark: true  # Set false for reproducibility
+
+# ======================
+# CALLBACKS
+# ======================
+callbacks:
+  model_checkpoint:
+    dirpath: ${output_dir}/checkpoints
+    filename: "epoch{epoch:03d}-step{step:06d}-val_f1{val/f1:.4f}"
+    monitor: "val/f1"  # Metric to monitor
+    mode: "max"  # max or min
+    save_top_k: 3  # Keep top 3 checkpoints
+    save_last: true  # Also save last checkpoint
+    verbose: true
+    auto_insert_metric_name: false
+
+  early_stopping:
+    monitor: "val/f1"
+    patience: 5  # Stop if no improvement for 5 epochs
+    mode: "max"
+    min_delta: 0.0
+    verbose: true
+
+  learning_rate_monitor:
+    logging_interval: "step"
+
+  model_summary:
+    max_depth: 2
+
+# ======================
+# COMMON HYPERPARAMETER COMBINATIONS
+# ======================
+
+# Uncomment one of these sections to quickly set common configurations:
+
+# # Small/Fast Training (for debugging)
+# model:
+#   hidden_size: 256
+#   num_layers: 2
+#   H_cycles: 2
+#   L_cycles: 4
+#   N_supervision: 8
+# trainer:
+#   max_epochs: 2
+#   limit_train_batches: 100
+#   limit_val_batches: 20
+
+# # Large Model (for best performance)
+# model:
+#   hidden_size: 768
+#   num_layers: 4
+#   H_cycles: 4
+#   L_cycles: 8
+#   N_supervision: 32
+#   learning_rate: 5e-5
+# trainer:
+#   max_epochs: 20
+#   accumulate_grad_batches: 2
+
+# # Train Embeddings from Scratch with RoPE
+# model:
+#   use_pretrained_encoder: false
+#   use_rope: true
+#   vocab_size: 30522
+#   hidden_size: 512
+#   learning_rate: 3e-4
+
+# # Fast Training with Optimizations
+# model:
+#   use_compile: true
+#   optimizer_name: "adamatan2"
+# trainer:
+#   precision: "bf16-mixed"

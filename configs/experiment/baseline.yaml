@@ -1,0 +1,54 @@
+# @package _global_
+
+# Baseline Experiment - Standard TRM configuration
+# Usage: python src/train.py experiment=baseline
+
+defaults:
+  - override /data: msmarco
+  - override /model: trm_reranker
+  - override /trainer: default
+  - override /logger: multi
+  - override /callbacks: default
+
+task_name: "baseline"
+seed: 42
+
+# Standard configuration from paper
+model:
+  encoder_name: "bert-base-uncased"
+  freeze_encoder: false
+  hidden_size: 512
+  num_layers: 2
+  num_heads: 8
+  ffn_expansion: 2.0
+  dropout: 0.1
+  H_cycles: 3
+  L_cycles: 6
+  N_supervision: 16
+  N_supervision_val: 16
+  learning_rate: 1e-4
+  weight_decay: 0.1
+  warmup_steps: 2000
+
+data:
+  batch_size: 32
+  num_workers: 4
+  max_length: 512
+
+trainer:
+  max_epochs: 10
+  val_check_interval: 1.0
+  precision: "bf16-mixed"
+  gradient_clip_val: 1.0
+
+callbacks:
+  model_checkpoint:
+    monitor: "val/f1"
+    mode: "max"
+    save_top_k: 3
+    filename: "baseline-epoch{epoch:03d}-f1{val/f1:.4f}"
+
+  early_stopping:
+    monitor: "val/f1"
+    patience: 5
+    mode: "max"

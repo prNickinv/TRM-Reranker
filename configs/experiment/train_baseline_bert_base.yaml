@@ -1,0 +1,68 @@
+# @package _global_
+
+defaults:
+  - override /data: gooaq
+  - override /model: baseline_reranker
+  - override /trainer: default
+  - override /logger: multi
+  - override /callbacks: default
+  #- _self_
+
+task_name: "baseline_bert_base_lr1e3dynamic_wd001_warm1500_5ep"
+seed: 42
+
+model:
+  model_name: "google-bert/bert-base-uncased"
+  learning_rate: 1e-3        # High learning rate is safe since we only train 1 linear layer
+  weight_decay: 0.01
+  warmup_steps: 1500  
+
+data:
+  tokenizer_name: ${model.model_name}
+  batch_size: 64         # You can use a very large batch size since the encoder is frozen
+  ranking_batch_size: 8
+  max_length: 256
+
+  train_file: gooaq_hard_train_50000.parquet
+  val_file: gooaq_hard_eval_50000_1000q.parquet
+  val_ranking_file: gooaq_hard_eval_50000_1000q_20cand.parquet
+  
+trainer:
+  max_epochs: 5
+  accelerator: "gpu"
+  devices: 1             # Or set to 4 for Multi-GPU via command line
+  precision: "32"
+  accumulate_grad_batches: 1
+
+  val_check_interval: 1.0  # Validate every epoch
+  check_val_every_n_epoch: 1
+
+  # Logging
+  log_every_n_steps: 100
+
+  deterministic: false
+  benchmark: true
+
+  enable_progress_bar: true
+  enable_model_summary: true
+
+callbacks:
+  model_checkpoint:
+    dirpath: ${output_dir}/checkpoints
+    monitor: "val/rel_loss"
+    mode: "min"
+    filename: "baseline-epoch{epoch:03d}-f1{val/f1:.4f}"
+    save_top_k: 1
+
+  learning_rate_monitor:
+    logging_interval: "step"
+
+  model_summary:
+    max_depth: 2
+
+  ema:
+    _target_: src.callbacks.ema.EMACallback
+    decay: 0.999
+    use_ema_for_validation: false
+
+output_dir: "./outputs/${task_name}/${now:%Y-%m-%d_%H-%M-%S}"

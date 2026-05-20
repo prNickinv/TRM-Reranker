@@ -1,0 +1,11 @@
+# TensorBoard Logger - interactive visualization of training metrics
+# View with: tensorboard --logdir {save_dir}/{name}
+
+tensorboard:
+  _target_: lightning.pytorch.loggers.TensorBoardLogger
+  save_dir: ${output_dir}
+  name: tensorboard_logs
+  version: null  # Auto-increment version number
+  log_graph: false  # Don't log model graph (can be large)
+  default_hp_metric: false
+  prefix: ""

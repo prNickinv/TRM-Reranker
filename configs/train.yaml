@@ -1,0 +1,22 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - data: msmarco
+  - model: trm_reranker
+  - callbacks: default
+  - logger: wandb
+  - trainer: default
+  - experiment: null
+
+# Task name
+task_name: "trm_reranker"
+
+# Seed
+seed: 42
+
+# Checkpoint path to resume training
+ckpt_path: null
+
+# Output directory
+output_dir: "./outputs/${task_name}/${now:%Y-%m-%d_%H-%M-%S}"

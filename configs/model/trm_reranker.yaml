@@ -1,0 +1,46 @@
+_target_: src.models.trm_reranker.TRMReranker
+
+# Encoder
+encoder_name: bert-base-uncased
+freeze_encoder: false
+
+# Embedding configuration
+use_pretrained_encoder: true  # Set to false to train embeddings from scratch
+vocab_size: 30522  # BERT vocab size (only used if use_pretrained_encoder=false)
+use_rope: false  # Enable Rotary Position Embeddings (only for trainable embeddings)
+rope_base: 10000.0  # RoPE base frequency
+
+# Architecture
+hidden_size: 512
+num_layers: 2
+num_heads: 8
+ffn_expansion: 2.0
+dropout: 0.1
+
+# TRM parameters
+H_cycles: 3
+L_cycles: 6
+N_supervision: 16
+N_supervision_val: 16
+halt_exploration_prob: 0.1
+
+# Training
+learning_rate: 1e-4
+weight_decay: 0.1
+warmup_steps: 2000
+lr_min_ratio: 0.0
+max_length: 512
+
+# Loss
+loss_type: bce  # 'bce', 'margin'
+margin: 1.0
+
+# Optimizer
+optimizer_name: adamw  # 'adamw', 'adamatan2'
+
+# Compilation (PyTorch 2.0+)
+use_compile: false
+compile_mode: reduce-overhead  # 'default', 'reduce-overhead', 'max-autotune'
+
+# Dtype
+forward_dtype: null  # null for auto

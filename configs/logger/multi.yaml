@@ -1,0 +1,6 @@
+# Multi Logger - combines CSV and TensorBoard logging
+# Recommended for local experiments without WandB access
+
+defaults:
+  - csv
+  - tensorboard

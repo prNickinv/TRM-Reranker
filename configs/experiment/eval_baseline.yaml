@@ -1,0 +1,43 @@
+# @package _global_
+
+defaults:
+  - /data: gooaq
+  - /model: baseline_reranker_ready
+  - /trainer: default
+  - /logger: multi
+  - _self_
+
+task_name: "eval_baseline_tinybert_l6_hidd768"
+seed: 42
+
+model:
+  model_name: "cross-encoder/ms-marco-TinyBERT-L6"
+
+data:
+  # Make sure the tokenizer matches the model!
+  tokenizer_name: ${model.model_name}
+  batch_size: 64
+  ranking_batch_size: 8
+  max_length: 256
+
+  train_file: gooaq_hard_train_50000.parquet
+  val_file: gooaq_hard_eval_50000_1000q.parquet
+  val_ranking_file: gooaq_hard_eval_50000_1000q_20cand.parquet
+
+  
+trainer:
+  # 1 GPU is usually enough for validation, but you can set to 4 if you have a massive validation set
+  devices: 1 
+  precision: "32"
+  # Disable strict progress bar limits for evaluation
+  limit_val_batches: 1.0
+
+  deterministic: false
+  benchmark: true
+
+# logger:
+#   csv:
+#     flush_logs_every_n_steps: 1
+    #name: "baseline_eval_logs"
+
+output_dir: "./outputs/${task_name}/${now:%Y-%m-%d_%H-%M-%S}"

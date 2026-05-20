@@ -1,0 +1,10 @@
+_target_: src.data.rerank_datamodule.RerankDataModule
+
+data_dir: ./data/msmarco
+tokenizer_name: bert-base-uncased
+max_length: 512
+batch_size: 32
+num_workers: 4
+train_file: train.jsonl
+val_file: val.jsonl
+test_file: test.jsonl

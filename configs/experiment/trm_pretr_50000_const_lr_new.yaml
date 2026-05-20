@@ -1,0 +1,144 @@
+# @package _global_
+
+# Experiment Template
+# Copy this file and modify parameters for your experiment
+# Usage: python src/train.py experiment=template
+
+defaults:
+  - override /data: gooaq
+  - override /model: trm_reranker
+  - override /trainer: default
+  - override /logger: multi  # Use csv + tensorboard (change to 'wandb' if available)
+  - override /callbacks: default
+
+# Experiment name (will be used in output directory)
+task_name: "trm_pretrain_bert_50000_h3l6_2layer_zeroinit_conts_lr3e5_ema_atan_wd05_nval1"
+
+# Random seed for reproducibility
+seed: 42
+
+# Resume from checkpoint (set path or null)
+ckpt_path: null
+
+# ======================
+# DATA CONFIGURATION
+# ======================
+data:
+  data_dir: ./data/gooaq
+  tokenizer_name: "google-bert/bert-base-uncased"
+
+  max_length: 256
+  batch_size: 32
+  num_workers: 4
+  ranking_batch_size: 4
+
+  train_file: gooaq_hard_train_50000.parquet
+  val_file: gooaq_hard_eval_50000_1000q.parquet
+  val_ranking_file: gooaq_hard_eval_50000_1000q_20cand.parquet
+
+
+# ======================
+# MODEL CONFIGURATION
+# ======================
+model:
+  # Encoder settings
+  encoder_name: "google-bert/bert-base-uncased"
+  freeze_encoder: true
+
+  # Embedding options (for training from scratch)
+  use_pretrained_encoder: true  # Set false to train embeddings from scratch
+  vocab_size: 30522
+  use_rope: false  #false Enable RoPE when use_pretrained_encoder=false
+  rope_base: 10000.0
+
+  # Architecture
+  hidden_size: 512
+  num_layers: 2
+  num_heads: 8 # 4 or 8 ?
+  ffn_expansion: 2.0
+  dropout: 0.1
+
+  # TRM recursive reasoning
+  H_cycles: 3  # High-level reasoning cycles
+  L_cycles: 6  # Low-level reasoning cycles per H-cycle
+  N_supervision: 16  # Max supervision steps during training
+  N_supervision_val: 1  # Max supervision steps during validation
+  halt_exploration_prob: 0.1  # Probability of enforcing minimum steps
+  max_length: 256
+
+  # Training hyperparameters
+  learning_rate: 3e-5 # lr_old * sqrt(N_gpu) initially were 1e-5
+  weight_decay: 0.5
+  warmup_steps: 600
+  lr_min_ratio: 0.01
+
+  # Loss configuration
+  loss_type: "bce"  # Options: 'bce', 'margin'
+  margin: 1.0  # Only used if loss_type='margin'
+
+  # Optimizer
+  optimizer_name: "adamatan2"  # Options: 'adamw', 'adamatan2'
+
+  # Performance optimization
+  use_compile: true  # Enable torch.compile (requires PyTorch 2.0+)
+  compile_mode: "reduce-overhead"  # Options: 'default', 'reduce-overhead', 'max-autotune'
+
+  # Mixed precision
+  forward_dtype: null  # null for auto (bf16 on GPU, fp32 on CPU)
+
+# ======================
+# TRAINER CONFIGURATION
+# ======================
+trainer:
+  # Training duration
+  max_epochs: 30 # were 30
+  max_steps: -1  # -1 means use max_epochs
+
+  # Validation
+  val_check_interval: 1.0  # Validate every epoch
+  check_val_every_n_epoch: 1
+
+  # Logging
+  log_every_n_steps: 100
+
+  # Hardware
+  accelerator: "gpu"  # auto, gpu, cpu, tpu
+  devices: 1 # number of gpus
+  #strategy: "ddp_find_unused_parameters_false"
+  precision: "bf16-mixed"  # Options: 32, 16, "bf16-mixed"
+
+  # Gradient settings
+  accumulate_grad_batches: 1
+
+  # Performance
+  deterministic: false  # Set true for reproducibility (slower)
+  benchmark: true  # Set false for reproducibility
+
+  enable_progress_bar: true
+  enable_model_summary: true
+
+# ======================
+# CALLBACKS
+# ======================
+callbacks:
+  model_checkpoint:
+    dirpath: ${output_dir}/checkpoints
+    filename: "epoch{epoch:03d}-step{step:06d}-val_loss{val/loss:.4f}"
+    monitor: "val/rel_loss"  # Metric to monitor
+    mode: "min"  # max or min
+    save_top_k: 1  # Keep top 3 checkpoints
+    save_last: true  # Also save last checkpoint
+    verbose: true
+    auto_insert_metric_name: false
+
+
+  learning_rate_monitor:
+    logging_interval: "step"
+
+  model_summary:
+    max_depth: 2
+
+  ema:
+    _target_: src.callbacks.ema.EMACallback
+    decay: 0.999
+    use_ema_for_validation: true

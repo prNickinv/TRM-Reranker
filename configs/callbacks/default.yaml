@@ -1,0 +1,13 @@
+model_checkpoint:
+  _target_: lightning.pytorch.callbacks.ModelCheckpoint
+  dirpath: ${output_dir}/checkpoints
+  filename: "epoch_{epoch:03d}"
+  monitor: "val/loss"
+  mode: "min"
+  save_top_k: 3
+  save_last: true
+
+ema:
+  _target_: src.callbacks.ema.EMACallback
+  decay: 0.999
+  use_ema_for_validation: true

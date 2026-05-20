@@ -1,0 +1,9 @@
+_target_: src.models.baseline_reranker_ready.BaselineRerankerReady
+
+model_name: "nreimers/BERT-Tiny_L-2_H-128_A-2"
+# Other options you can try for meaningful zero-shot evaluation:
+# model_name: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+# model_name: "BAAI/bge-reranker-base"
+# "cross-encoder/ms-marco-TinyBERT-L6"
+
+forward_dtype: null
