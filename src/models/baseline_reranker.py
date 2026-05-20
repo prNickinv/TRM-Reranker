@@ -1,4 +1,4 @@
-"""Baseline Reranker Model using standard Hugging Face AutoModel."""
+"""Baseline Reranker Model using standard Hugging Face AutoModel (training)."""
 
 import os
 from typing import Dict, Optional
@@ -48,7 +48,6 @@ class BaselineReranker(LightningModule):
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         """Forward pass extracting the CLS token and projecting to a relevance score."""
         outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
-        # Assuming the first token [CLS] / <s> is the sequence representation
         cls_repr = outputs.last_hidden_state[:, 0, :]
         logits = self.relevance_head(cls_repr).squeeze(-1)
         return logits

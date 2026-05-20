@@ -1,10 +1,10 @@
 _target_: src.models.baseline_reranker.BaselineReranker
 
 model_name: "google-bert/bert-base-uncased"
-freeze_encoder: true       # ONLY the relevance head will be trained
-learning_rate: 1e-3        # High learning rate is safe since we only train 1 linear layer
+freeze_encoder: true
+learning_rate: 1e-3 
 weight_decay: 0.01
-warmup_steps: 250          # Adjust depending on dataset size
+warmup_steps: 250
 forward_dtype: null
 
 

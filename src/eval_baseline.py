@@ -38,7 +38,7 @@ def main(cfg: DictConfig):
     loggers: list[Logger] = instantiate_loggers(cfg.get("logger"))
     
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
-    # For evaluation, we usually only need a basic trainer
+    
     trainer: Trainer = hydra.utils.instantiate(cfg.trainer, logger=loggers)
     
     log.info("Starting Validation on Pretrained Baseline!")

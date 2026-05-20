@@ -1,4 +1,4 @@
-"""Baseline Reranker Model using standard Hugging Face AutoModelForSequenceClassification."""
+"""Baseline Reranker Model using standard Hugging Face AutoModelForSequenceClassification (already trained)."""
 
 from typing import Dict, Optional
 import torch
