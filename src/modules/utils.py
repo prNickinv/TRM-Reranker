@@ -11,8 +11,7 @@ def trunc_normal_init_(
     upper: float = 2.0
 ) -> torch.Tensor:
     """
-    Truncated normal initialization (JAX-style).
-    Adapted from provided code.
+    Truncated normal initialization.
     """
     with torch.no_grad():
         if std == 0:

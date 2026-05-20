@@ -56,7 +56,7 @@ class RMSNorm(nn.Module):
 
 
 class RotaryEmbedding(nn.Module):
-    """Rotary Position Embedding (RoPE)."""
+    """Rotary Position Embedding."""
 
     def __init__(self, dim: int, max_position_embeddings: int = 2048, base: float = 10000.0, device=None):
         super().__init__()
@@ -71,7 +71,6 @@ class RotaryEmbedding(nn.Module):
         t = torch.arange(max_position_embeddings, dtype=torch.float32, device=device)
         freqs = torch.outer(t, inv_freq)
 
-        # Different from paper, but uses different permutation for same calculation
         emb = torch.cat((freqs, freqs), dim=-1)
         self.register_buffer("cos_cached", emb.cos(), persistent=False)
         self.register_buffer("sin_cached", emb.sin(), persistent=False)
