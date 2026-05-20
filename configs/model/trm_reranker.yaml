@@ -24,12 +24,21 @@ N_supervision: 16
 N_supervision_val: 16
 halt_exploration_prob: 0.1
 
+# z initialization
+z_init_method: zero  # "zero", "trunc_normal", "learned"
+
+# Relevance head dropout
+relevance_head_dropout_flag: false
+relevance_head_dropout_prob: 0.1
+
 # Training
 learning_rate: 1e-4
 weight_decay: 0.1
 warmup_steps: 2000
 lr_min_ratio: 0.0
 max_length: 512
+
+learning_rate_type: constant  # 'constant', 'cosine' 
 
 # Loss
 loss_type: bce  # 'bce', 'margin'

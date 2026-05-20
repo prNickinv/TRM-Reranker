@@ -29,13 +29,13 @@ log = RankedLogger(__name__, rank_zero_only=True)
 @dataclass
 class TRMInnerCarry:
     """Inner state carried across recursion."""
-    z_H: torch.Tensor  # High-level state (relevance representation)
-    z_L: torch.Tensor  # Low-level state (reasoning representation)
+    z_H: torch.Tensor  # Draft answer
+    z_L: torch.Tensor  # Reasoning 
 
 
 @dataclass
 class TRMCarry:
-    """Carry structure for maintaining state across supervision steps."""
+    """Carry structure for maintaining state across iterations."""
     inner_carry: TRMInnerCarry
     steps: torch.Tensor
     halted: torch.Tensor
@@ -44,10 +44,7 @@ class TRMCarry:
 
 class TRMReranker(LightningModule):
     """
-    TRM Reranker: Tiny Recursive Model for document reranking.
-    
-    Recursively refines relevance predictions through multiple supervision steps.
-    Uses a single tiny 2-layer transformer for parameter efficiency.
+    TRM-Reranker: Reranker based on Tiny Recursive Model.
     """
     
     def __init__(
@@ -66,6 +63,13 @@ class TRMReranker(LightningModule):
         N_supervision: int = 16,
         N_supervision_val: int = 16,
         halt_exploration_prob: float = 0.1,
+        
+        # z initialization
+        z_init_method: str = "zero", # "zero", "trunc_normal", "learned"
+        
+        # Relevance head dropout
+        relevance_head_dropout_flag: bool = False,
+        relevance_head_dropout_prob: float = 0.1,
 
         # Training parameters
         learning_rate: float = 1e-4,
@@ -73,9 +77,11 @@ class TRMReranker(LightningModule):
         warmup_steps: int = 2000,
         lr_min_ratio: float = 0.0,
         max_length: int = 512,
+        
+        learning_rate_type: str = "constant",  # "constant", "cosine
 
         # Loss configuration
-        loss_type: str = "bce",  # 'bce', 'margin', 'listnet'
+        loss_type: str = "bce",
         margin: float = 1.0,
 
         # Optimizer configuration
@@ -112,7 +118,7 @@ class TRMReranker(LightningModule):
         
         log.info(f"Using forward dtype: {self.forward_dtype}")
 
-        # Initialize encoder or embeddings
+        # Initialize encoder 
         if use_pretrained_encoder:
             # Load pretrained encoder
             log.info(f"Loading pretrained encoder: {encoder_name}")
@@ -146,7 +152,7 @@ class TRMReranker(LightningModule):
             # Train embeddings from scratch
             log.info(f"Training embeddings from scratch with vocab_size={vocab_size}")
             self.encoder = None
-            self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)  # Still need tokenizer
+            self.tokenizer = AutoTokenizer.from_pretrained(encoder_name)
 
             embed_init_std = 1.0 / math.sqrt(hidden_size)
             
@@ -172,14 +178,14 @@ class TRMReranker(LightningModule):
             else:
                 self.rope = None
         
-        # TRM reasoning network (single network, not hierarchical)
+        # TRM reasoning network
         reasoning_config = ReasoningBlockConfig(
             hidden_size=hidden_size,
             num_heads=num_heads,
             expansion=ffn_expansion,
             rms_norm_eps=1e-5,
             dropout=dropout,
-            use_rope=use_rope if not use_pretrained_encoder else False,
+            use_rope=use_rope,
         )
         
         self.reasoning_net = ReasoningModule(
@@ -189,12 +195,13 @@ class TRMReranker(LightningModule):
         )
         
         # Output heads
-        self.relevance_head = CastedLinear(hidden_size, 1, bias=True)
-
-        # self.relevance_head = nn.Sequential(
-        #    nn.Dropout(dropout),
-        #    CastedLinear(hidden_size, 1, bias=True),
-        # )
+        if relevance_head_dropout_flag:
+            self.relevance_head = nn.Sequential(
+                nn.Dropout(relevance_head_dropout_prob),
+                CastedLinear(hidden_size, 1, bias=True)
+            )
+        else:
+            self.relevance_head = CastedLinear(hidden_size, 1, bias=True)
 
         self.q_head = CastedLinear(hidden_size, 1, bias=True)
         
@@ -203,34 +210,39 @@ class TRMReranker(LightningModule):
             self.q_head.weight.zero_()
             if self.q_head.bias is not None:
                 self.q_head.bias.fill_(-5.0)
+                
+        # z initialization        
+        if z_init_method == "trunc_normal":
+            log.info("Initializing z_H and z_L with truncated normal distribution")
+            self.register_buffer(
+                "z_H_init",
+                trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
+            )
+            self.register_buffer(
+                "z_L_init",
+                trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
+            )
+        elif z_init_method == "learned":
+            log.info("Initializing z_H and z_L as learnable parameters with truncated normal distribution")
+            self.z_H_init = nn.Parameter(
+                trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
+                requires_grad=True,
+            )
+            self.z_L_init = nn.Parameter(
+                trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
+                requires_grad=True,
+            )
+        else:
+            log.info("Initializing z_H and z_L with zeros")
+            self.register_buffer(
+                "z_H_init",
+                torch.zeros(hidden_size, dtype=self.forward_dtype),
+            )
+            self.register_buffer(
+                "z_L_init",
+                torch.zeros(hidden_size, dtype=self.forward_dtype),
+            )
         
-        # Initial states for z_H and z_L
-        # self.register_buffer(
-        #     "z_H_init",
-        #     trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
-        # )
-        # self.register_buffer(
-        #     "z_L_init",
-        #     trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
-        # )
-
-        self.register_buffer(
-            "z_H_init",
-            torch.zeros(hidden_size, dtype=self.forward_dtype),
-        )
-        self.register_buffer(
-            "z_L_init",
-            torch.zeros(hidden_size, dtype=self.forward_dtype),
-        )
-    
-        # self.z_H_init = nn.Parameter(
-        #     trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
-        #     requires_grad=True,
-        # )
-        # self.z_L_init = nn.Parameter(
-        #     trunc_normal_init_(torch.empty(hidden_size, dtype=self.forward_dtype), std=1),
-        #     requires_grad=True,
-        # )
         
         # State for carry (persisted across training steps)
         self.carry = None
@@ -418,7 +430,7 @@ class TRMReranker(LightningModule):
         else:
             extended_attention_mask = None
 
-        # Get RoPE embeddings if using trainable embeddings
+        # Get RoPE embeddings if needed
         cos_sin = None
         if self.rope is not None:
             cos_sin = self.rope()
@@ -455,7 +467,7 @@ class TRMReranker(LightningModule):
         carry: TRMCarry,
         batch: Dict[str, torch.Tensor],
     ) -> Tuple[TRMCarry, Dict[str, torch.Tensor]]:
-        """Forward pass with supervision step management."""
+        """Forward pass with ACT and supervision step management."""
         # Reset carry for halted sequences
         new_inner_carry = self.reset_carry(carry.halted, carry.inner_carry)
         new_steps = torch.where(carry.halted, 0, carry.steps)
@@ -510,12 +522,12 @@ class TRMReranker(LightningModule):
                 labels.to(outputs["q_halt_logits"].dtype),
                 reduction="sum",
             )
-        elif self.hparams.loss_type == "margin":
-            # Margin ranking loss (for pairwise training)
-            relevance_loss = torch.clamp(
-                self.hparams.margin - outputs["relevance_logits"] * (2 * labels.float() - 1),
-                min=0
-            ).sum()
+        # elif self.hparams.loss_type == "margin":
+        #     # Margin ranking loss (for pairwise training)
+        #     relevance_loss = torch.clamp(
+        #         self.hparams.margin - outputs["relevance_logits"] * (2 * labels.float() - 1),
+        #         min=0
+        #     ).sum()
         else:
             raise ValueError(f"Unknown loss type: {self.hparams.loss_type}")
         
@@ -620,7 +632,16 @@ class TRMReranker(LightningModule):
         #new_warmup_steps = int(new_total_steps * 0.015)
         #new_warmup_steps = self.hparams.warmup_steps
         
-        lr_this_step = self.hparams.learning_rate
+        if self.hparams.learning_rate_type == "constant":
+            lr_this_step = self.hparams.learning_rate
+        elif self.hparams.learning_rate_type == "cosine":
+            lr_this_step = compute_lr(
+                base_lr=self.hparams.learning_rate,
+                lr_warmup_steps=self.hparams.warmup_steps,
+                lr_min_ratio=self.hparams.lr_min_ratio,
+                current_step=self.global_step,
+                total_steps=self.trainer.estimated_stepping_batches,
+            )
 
         # lr_this_step = compute_lr(
         #     base_lr=base_lr,
@@ -721,11 +742,11 @@ class TRMReranker(LightningModule):
     
     def _validate_ranking(self, batch: Dict[str, torch.Tensor], batch_idx: int):
         """Inference for Ranking dataset per query"""
-        B, num_docs, seq_len = batch["input_ids"].shape  # num_docs should be 20
+        B, num_docs, seq_len = batch["input_ids"].shape
         
         with torch.no_grad():
         
-            # Flatten batch to process [B * 20, seq_len] efficiently
+            # Flatten batch to process [B * num_candidates, seq_len] efficiently
             flat_batch = {
                 "input_ids": batch["input_ids"].view(-1, seq_len),
                 "attention_mask": batch["attention_mask"].view(-1, seq_len),
@@ -768,7 +789,7 @@ class TRMReranker(LightningModule):
             latency_ms = ((end_time - start_time) * 1000.0) / B
             self.log("val_ranking/latency_ms", latency_ms, sync_dist=True, on_step=False, on_epoch=True, add_dataloader_idx=False, batch_size=B)
 
-            # Reshape logits back to [B, 20]
+            # Reshape logits back to [B, num_candidates]
             logits = relevance_logits.view(B, num_docs)
             
             # Apply sigmoid to normalize scores strictly for ranking compatibility
@@ -819,9 +840,9 @@ class TRMReranker(LightningModule):
                 run
             )
             
-            # Log metrics cleanly to PyTorch Lightning
+            # Log metrics to PyTorch Lightning
             for metric, value in metrics.items():
-                metric_name = str(metric).replace("@", "_") # Clean "@" for WandB / Checkpointing
+                metric_name = str(metric).replace("@", "_")
                 self.log(f"val_ranking/{metric_name}", value, sync_dist=True, add_dataloader_idx=False)
             
             # Clear memory
@@ -867,7 +888,6 @@ class TRMReranker(LightningModule):
             if not param.requires_grad:
                 continue
                 
-            # Biases and 1D parameters (like RMSNorm weights) should NOT have weight decay
             if param.ndim <= 1 or name.endswith(".bias"):
                 no_decay_params.append(param)
             else:
